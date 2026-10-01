@@ -47,11 +47,11 @@ Después de hiperparametrizar XGBoost, el RMSE de validación bajó de 48.761 a 
 | Archivo | Descripción |
 |---|---|
 | `Practica3_MineriaDeDatos_DanielCardona_JuanJoseTamayo.ipynb` | Notebook de modelos: preparación, selección de factores, validación cruzada, GridSearch y guardado del modelo final |
+| `Despliegue_Streamlit_DanielCardona_JuanJoseTamayo.ipynb` | Notebook de despliegue: prueba del modelo y ejecución de la aplicación en Google Colab |
 | `app.py` | Aplicación Streamlit |
 | `requirements.txt` | Librerías necesarias |
 | `modelo-xgb-final.pkl` | Modelo final entrenado, con la lista de variables y las métricas de prueba |
 | `housing.csv` | Base de datos |
-
 
 ## Qué hace la aplicación
 
