@@ -130,6 +130,26 @@ if 'lat' not in st.session_state:
     st.session_state.lat, st.session_state.lon = CIUDADES['Los Ángeles']
 
 
+def control(etiqueta, minimo, maximo, inicial, paso, clave, formato):
+    """Slider y caja numérica sincronizados: el valor se puede mover o escribir con el teclado."""
+    if clave not in st.session_state:
+        st.session_state[clave] = inicial
+    st.session_state[clave + '_slider'] = st.session_state[clave]
+    st.session_state[clave + '_caja'] = st.session_state[clave]
+
+    def desde_slider():
+        st.session_state[clave] = st.session_state[clave + '_slider']
+
+    def desde_caja():
+        st.session_state[clave] = st.session_state[clave + '_caja']
+
+    c1, c2 = st.columns([2, 1], vertical_alignment='bottom')
+    c1.slider(etiqueta, minimo, maximo, step=paso, key=clave + '_slider', on_change=desde_slider)
+    c2.number_input(etiqueta, minimo, maximo, step=paso, format=formato, key=clave + '_caja',
+                    on_change=desde_caja, label_visibility='collapsed')
+    return st.session_state[clave]
+
+
 def aplicar_ciudad():
     ciudad = st.session_state.ciudad
     if ciudad in CIUDADES:
@@ -141,8 +161,8 @@ with st.sidebar:
 
     st.subheader('Ubicación', divider='blue')
     st.selectbox('Ciudad de referencia', list(CIUDADES) + ['Personalizada'], key='ciudad', on_change=aplicar_ciudad)
-    st.slider('Latitud', 32.5, 42.0, key='lat', step=0.01)
-    st.slider('Longitud', -124.4, -114.3, key='lon', step=0.01)
+    control('Latitud', 32.5, 42.0, 34.05, 0.01, 'lat', '%.2f')
+    control('Longitud', -124.4, -114.3, -118.24, 0.01, 'lon', '%.2f')
 
     vecinos = vecinos_cercanos(st.session_state.lat, st.session_state.lon)
     oceano_sugerido = vecinos['ocean_proximity'].mode().iloc[0]
@@ -154,9 +174,9 @@ with st.sidebar:
         oceano = st.selectbox('Proximidad al océano', CATEGORIAS_OCEANO, index=CATEGORIAS_OCEANO.index(oceano_sugerido))
 
     st.subheader('Población y viviendas', divider='blue')
-    ingreso = st.slider('Ingreso mediano de los hogares (decenas de miles de USD)', 0.5, 15.0, 3.5, 0.1)
+    ingreso = control('Ingreso mediano (decenas de miles de USD)', 0.5, 15.0, 3.5, 0.01, 'ingreso', '%.2f')
     st.caption(f'Equivale a unos {usd(ingreso * 10000)} al año')
-    antiguedad = st.slider('Antigüedad mediana de las viviendas (años)', 1, 52, 29)
+    antiguedad = control('Antigüedad mediana (años)', 1, 52, 29, 1, 'antiguedad', '%d')
 
     st.subheader('Tamaño del bloque censal', divider='blue')
     c1, c2 = st.columns(2)
@@ -330,7 +350,9 @@ with tab_modelo:
         ).properties(height=320), width='stretch')
     with i2:
         st.markdown('#### Cómo funciona')
-        hp = modelo.get_params()
+        # Se leen los atributos directamente (get_params falla si xgboost/sklearn tienen otra versión)
+        hp = {k: getattr(modelo, k, None) for k in
+              ['n_estimators', 'max_depth', 'learning_rate', 'min_child_weight', 'subsample', 'colsample_bytree']}
         st.markdown(f"""
 1. Se ingresan los datos del distrito en su escala original.
 2. Se calculan las razones **cuartos por vivienda** y **personas por vivienda**.
@@ -340,7 +362,7 @@ with tab_modelo:
    estima el valor mediano.
 """)
         with st.expander('Hiperparámetros (GridSearch)'):
-            st.json({k: hp[k] for k in ['n_estimators', 'max_depth', 'learning_rate', 'min_child_weight', 'subsample', 'colsample_bytree']})
+            st.json(hp)
         with st.expander('Limitaciones'):
             st.markdown("""
 - Los datos son del censo de **1990**: los valores no corresponden a precios actuales.
