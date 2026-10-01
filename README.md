@@ -7,8 +7,6 @@ Daniel Cardona González · Juan José Tamayo Ospina
 
 **Aplicación en línea:** _agregar aquí el enlace de Streamlit Community Cloud_
 
-![Pantallazo de la aplicación](pantallazo_despliegue.png)
-
 ## Resultados
 
 El modelo final es un **XGBoost hiperparametrizado con GridSearch**. Estas son sus métricas en el 30% de los datos que se reservó desde el inicio y no se usó para entrenar ni para elegir hiperparámetros:
@@ -56,23 +54,6 @@ Después de hiperparametrizar XGBoost, el RMSE de validación bajó de 48.761 a 
 | `modelo_info.json` | Variables del modelo, hiperparámetros, métricas e importancia de las variables |
 | `housing.csv` | Base de datos |
 | `pantallazo_despliegue.png` | Pantallazo de la aplicación |
-
-## Cómo ejecutar la aplicación
-
-**En el computador**
-
-```bash
-pip install -r requirements.txt
-streamlit run app.py
-```
-
-La aplicación se abre en `http://localhost:8501`.
-
-**En Google Colab:** abrir el notebook de despliegue, subir `modelo_xgb_final.json`, `modelo_info.json` y `housing.csv`, y ejecutar las celdas en orden. La sección 6 imprime un enlace público temporal (`https://....trycloudflare.com`).
-
-**En Streamlit Community Cloud:** en [share.streamlit.io](https://share.streamlit.io), crear una aplicación desde este repositorio con `app.py` como archivo principal.
-
-Para regenerar el modelo, ejecutar completo el notebook de modelos; la sección 7 crea `modelo_xgb_final.json` y `modelo_info.json`.
 
 ## Qué hace la aplicación
 
