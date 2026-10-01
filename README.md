@@ -49,11 +49,7 @@ Después de hiperparametrizar XGBoost, el RMSE de validación bajó de 48.761 a 
 | `Despliegue_Streamlit_DanielCardona_JuanJoseTamayo.ipynb` | Notebook de despliegue: prueba del modelo y ejecución de la aplicación en Google Colab |
 | `app.py` | Aplicación Streamlit |
 | `requirements.txt` | Librerías necesarias |
-| `.streamlit/config.toml` | Tema de la aplicación |
-| `modelo_xgb_final.json` | Modelo final entrenado |
-| `modelo_info.json` | Variables del modelo, hiperparámetros, métricas e importancia de las variables |
 | `housing.csv` | Base de datos |
-| `pantallazo_despliegue.png` | Pantallazo de la aplicación |
 
 ## Qué hace la aplicación
 
