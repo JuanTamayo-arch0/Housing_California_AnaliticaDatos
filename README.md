@@ -7,7 +7,6 @@ Daniel Cardona González · Juan José Tamayo Ospina
 
 **Aplicación en línea:** [fycxsbayq58p7h9szhdyff.streamlit.app](https://fycxsbayq58p7h9szhdyff.streamlit.app/)
 
-![Pantallazo de la aplicación](pantallazo_despliegue.png)
 
 ## Resultados
 
@@ -48,31 +47,11 @@ Después de hiperparametrizar XGBoost, el RMSE de validación bajó de 48.761 a 
 | Archivo | Descripción |
 |---|---|
 | `Practica3_MineriaDeDatos_DanielCardona_JuanJoseTamayo.ipynb` | Notebook de modelos: preparación, selección de factores, validación cruzada, GridSearch y guardado del modelo final |
-| `Despliegue_Streamlit_DanielCardona_JuanJoseTamayo.ipynb` | Notebook de despliegue: prueba del modelo y ejecución de la aplicación en Google Colab |
 | `app.py` | Aplicación Streamlit |
 | `requirements.txt` | Librerías necesarias |
 | `modelo-xgb-final.pkl` | Modelo final entrenado, con la lista de variables y las métricas de prueba |
 | `housing.csv` | Base de datos |
-| `pantallazo_despliegue.png` | Pantallazo de la aplicación |
 
-## Cómo ejecutar la aplicación
-
-**En el computador**
-
-```bash
-pip install -r requirements.txt
-streamlit run app.py
-```
-
-La aplicación se abre en `http://localhost:8501`.
-
-**En Google Colab:** abrir el notebook de despliegue, subir `modelo-xgb-final.pkl` y `housing.csv`, y ejecutar las celdas en orden. La sección 5 imprime un enlace público temporal (`https://....trycloudflare.com`).
-
-**En línea:** la aplicación está publicada en Streamlit Community Cloud en [https://fycxsbayq58p7h9szhdyff.streamlit.app/](https://fycxsbayq58p7h9szhdyff.streamlit.app/). Se actualiza automáticamente cada vez que se sube un cambio a este repositorio.
-
-Para regenerar el modelo, ejecutar completo el notebook de modelos; la sección 7 crea `modelo-xgb-final.pkl`.
-
-Como el modelo está guardado con `pickle`, conviene usar en el despliegue la misma versión de `xgboost` con la que se entrenó (la sección 7 la imprime). Si es distinta, se puede fijar en `requirements.txt`, por ejemplo `xgboost==2.1.4`.
 
 ## Qué hace la aplicación
 
