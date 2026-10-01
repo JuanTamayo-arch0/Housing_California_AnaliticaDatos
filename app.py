@@ -5,66 +5,36 @@ Daniel Cardona González · Juan José Tamayo Ospina
 Ejecutar con:  streamlit run app.py
 
 Archivos necesarios en la misma carpeta:
-  modelo_xgb_final.json, modelo_info.json  (sección 7 del notebook de modelos)
+  modelo-xgb-final.pkl  (sección 7 del notebook de modelos)
   housing.csv
 """
-import json
+import pickle
 
 import altair as alt
 import numpy as np
 import pandas as pd
 import pydeck as pdk
 import streamlit as st
-import xgboost as xgb
-
-# ---------------------------------------------------------------- Preparación de datos y modelo
-ARCHIVO_MODELO = 'modelo_xgb_final.json'
-ARCHIVO_INFO = 'modelo_info.json'
 
 # Columnas que el usuario ingresa, en su escala original (sin normalizar)
 COLUMNAS_ENTRADA = ['longitude', 'latitude', 'housing_median_age', 'total_rooms',
                     'population', 'households', 'median_income', 'ocean_proximity']
-
 CATEGORIAS_OCEANO = ['<1H OCEAN', 'INLAND', 'NEAR BAY', 'NEAR OCEAN']
 
 
-def cargar_modelo(ruta_modelo=ARCHIVO_MODELO, ruta_info=ARCHIVO_INFO):
-    modelo = xgb.XGBRegressor()
-    modelo.load_model(ruta_modelo)
-    with open(ruta_info, encoding='utf-8') as f:
-        info = json.load(f)
-    return modelo, info
-
-
-def construir_variables(datos, variables):
-    """Convierte los datos crudos en las variables que espera el modelo.
-
-    1. Calcula las razones por hogar.
-    2. Crea las dummies de ocean_proximity (ISLAND se trata como NEAR OCEAN, igual que en el entrenamiento).
-    3. Ordena las columnas exactamente como en el entrenamiento.
-    """
-    datos = datos.copy()
+def preparar_datos(datos, variables):
+    """Convierte los datos crudos en las variables del modelo: razones por hogar,
+    dummies de ocean_proximity (ISLAND se trata como NEAR OCEAN) y mismo orden de columnas."""
     faltantes = [c for c in COLUMNAS_ENTRADA if c not in datos.columns]
     if faltantes:
         raise ValueError(f'Faltan columnas: {faltantes}')
-
-    oceano = datos['ocean_proximity'].astype(str).str.strip().str.upper().replace('ISLAND', 'NEAR OCEAN')
-    X = pd.DataFrame(index=datos.index)
-    X['longitude'] = datos['longitude'].astype(float)
-    X['latitude'] = datos['latitude'].astype(float)
-    X['housing_median_age'] = datos['housing_median_age'].astype(float)
-    X['median_income'] = datos['median_income'].astype(float)
+    X = datos[['longitude', 'latitude', 'housing_median_age', 'median_income']].astype(float)
     X['population_per_household'] = datos['population'] / datos['households']
     X['rooms_per_household'] = datos['total_rooms'] / datos['households']
-    for v in variables:
-        if v.startswith('ocean_proximity_'):
-            X[v] = (oceano == v.replace('ocean_proximity_', '')).astype(int)
+    oceano = datos['ocean_proximity'].replace('ISLAND', 'NEAR OCEAN')
+    for categoria in ['INLAND', 'NEAR BAY', 'NEAR OCEAN']:
+        X['ocean_proximity_' + categoria] = (oceano == categoria).astype(int)
     return X[variables]
-
-
-def predecir(modelo, info, datos):
-    X = construir_variables(datos, info['variables'])
-    return modelo.predict(X)
 
 
 st.set_page_config(page_title='Valor de vivienda en California', page_icon=':material/home:', layout='wide')
@@ -115,8 +85,9 @@ def decimal(v, n=1):
 
 # ---------------------------------------------------------------- Datos y modelo
 @st.cache_resource
-def recursos():
-    return cargar_modelo()
+def cargar_modelo():
+    modelo, variables, metricas = pickle.load(open('modelo-xgb-final.pkl', 'rb'))
+    return modelo, variables, metricas
 
 
 @st.cache_data
@@ -126,10 +97,13 @@ def cargar_datos():
     return datos
 
 
-modelo, info = recursos()
+modelo, variables, metricas = cargar_modelo()
 datos = cargar_datos()
-metricas = info['metricas_prueba']
 mae = metricas['MAE']
+
+
+def predecir(datos_crudos):
+    return modelo.predict(preparar_datos(datos_crudos, variables))
 
 
 def vecinos_cercanos(lat, lon, k=10):
@@ -197,7 +171,7 @@ entrada = pd.DataFrame([{
     'total_rooms': cuartos, 'population': poblacion, 'households': hogares,
     'median_income': ingreso, 'ocean_proximity': oceano,
 }])
-valor = float(predecir(modelo, info, entrada)[0])
+valor = float(predecir(entrada)[0])
 
 # ---------------------------------------------------------------- Encabezado
 st.markdown(f"""
@@ -206,7 +180,7 @@ st.markdown(f"""
   <p>Estima el valor mediano de las viviendas de un distrito censal a partir de su ubicación, ingreso y características.</p>
   <div class="chips">
     <span class="chip">XGBoost hiperparametrizado</span>
-    <span class="chip">R² en prueba {decimal(metricas['R²'], 3)}</span>
+    <span class="chip">R² en prueba {decimal(metricas['R2'], 3)}</span>
     <span class="chip">Error típico ± {usd(mae)}</span>
     <span class="chip">Censo de California, 1990</span>
   </div>
@@ -241,10 +215,12 @@ col_c.markdown(f"""
 
 # Advertencias
 avisos = []
-r = info['rangos_razones']
-if not (r['rooms_per_household'][0] <= cuartos_hogar <= r['rooms_per_household'][1]):
+# Rangos habituales (percentiles 0,5% y 99,5% de los datos)
+cuartos_min, cuartos_max = (datos['total_rooms'] / datos['households']).quantile([0.005, 0.995])
+personas_min, personas_max = (datos['population'] / datos['households']).quantile([0.005, 0.995])
+if not (cuartos_min <= cuartos_hogar <= cuartos_max):
     avisos.append(f'{decimal(cuartos_hogar)} cuartos por vivienda es un valor poco común en los datos de entrenamiento.')
-if not (r['population_per_household'][0] <= personas_hogar <= r['population_per_household'][1]):
+if not (personas_min <= personas_hogar <= personas_max):
     avisos.append(f'{decimal(personas_hogar)} personas por vivienda es un valor poco común en los datos de entrenamiento.')
 if vecinos['distancia_km'].iloc[0] > 25:
     avisos.append('La ubicación está lejos de cualquier distrito del censo (puede ser el mar o una zona despoblada).')
@@ -292,7 +268,7 @@ with tab_analisis:
     def curva(columna, valores):
         filas = pd.concat([entrada] * len(valores), ignore_index=True)
         filas[columna] = valores
-        return pd.DataFrame({'x': valores, 'valor': predecir(modelo, info, filas)})
+        return pd.DataFrame({'x': valores, 'valor': predecir(filas)})
 
     def grafica_curva(df, x_actual, titulo_x):
         base = alt.Chart(df).encode(x=alt.X('x:Q', title=titulo_x))
@@ -308,11 +284,11 @@ with tab_analisis:
     with g1:
         st.markdown('**Ingreso mediano de los hogares**')
         st.altair_chart(grafica_curva(curva('median_income', np.round(np.arange(0.5, 15.01, 0.25), 2)), ingreso,
-                                      'Ingreso (decenas de miles de USD)'), use_container_width=True)
+                                      'Ingreso (decenas de miles de USD)'), width='stretch')
     with g2:
         st.markdown('**Antigüedad mediana de las viviendas**')
         st.altair_chart(grafica_curva(curva('housing_median_age', np.arange(1, 53)), antiguedad,
-                                      'Antigüedad (años)'), use_container_width=True)
+                                      'Antigüedad (años)'), width='stretch')
 
     st.markdown('#### ¿Dónde queda el valor estimado frente a toda California?')
     hist = alt.Chart(datos).mark_bar(color=AZUL, opacity=0.85, cornerRadiusTopLeft=3, cornerRadiusTopRight=3).encode(
@@ -322,21 +298,21 @@ with tab_analisis:
     regla = alt.Chart(pd.DataFrame({'v': [valor]})).mark_rule(color=NARANJA, strokeWidth=3).encode(x='v:Q')
     etiqueta = alt.Chart(pd.DataFrame({'v': [valor], 't': ['Estimado: ' + usd(valor)]})).mark_text(
         align='left', dx=6, dy=-6, color=NARANJA, fontWeight='bold').encode(x='v:Q', y=alt.value(12), text='t:N')
-    st.altair_chart((hist + regla + etiqueta).properties(height=280), use_container_width=True)
+    st.altair_chart((hist + regla + etiqueta).properties(height=280), width='stretch')
 
     st.markdown('#### Los 10 distritos reales más cercanos')
     tabla_vec = vecinos[['distancia_km', 'median_house_value', 'median_income', 'housing_median_age',
                          'ocean_proximity']].rename(columns={
         'distancia_km': 'Distancia (km)', 'median_house_value': 'Valor real (USD)',
         'median_income': 'Ingreso (dec. miles USD)', 'housing_median_age': 'Antigüedad', 'ocean_proximity': 'Océano'})
-    st.dataframe(tabla_vec, hide_index=True, use_container_width=True, column_config={
+    st.dataframe(tabla_vec, hide_index=True, width='stretch', column_config={
         'Distancia (km)': st.column_config.NumberColumn(format='%.1f'),
         'Valor real (USD)': st.column_config.ProgressColumn(format='$%d', min_value=0, max_value=500001),
         'Ingreso (dec. miles USD)': st.column_config.NumberColumn(format='%.2f')})
 
 with tab_modelo:
     m1, m2, m3, m4 = st.columns(4)
-    m1.metric('R² (prueba)', decimal(metricas['R²'], 3), help='Proporción de la variabilidad del precio que explica el modelo')
+    m1.metric('R² (prueba)', decimal(metricas['R2'], 3), help='Proporción de la variabilidad del precio que explica el modelo')
     m2.metric('MAE (prueba)', usd(metricas['MAE']), help='Error absoluto promedio en dólares')
     m3.metric('RMSE (prueba)', usd(metricas['RMSE']), help='Raíz del error cuadrático medio; penaliza más los errores grandes')
     m4.metric('MAPE (prueba)', f"{decimal(metricas['MAPE'] * 100)}%", help='Error relativo promedio')
@@ -345,25 +321,26 @@ with tab_modelo:
     i1, i2 = st.columns([1.3, 1])
     with i1:
         st.markdown('#### Importancia de las variables')
-        imp = pd.DataFrame(list(info['importancia_permutacion'].items()), columns=['variable', 'aumento'])
-        imp['variable'] = imp['variable'].map(NOMBRES).fillna(imp['variable'])
+        imp = pd.DataFrame({'variable': [NOMBRES.get(v, v) for v in variables],
+                            'importancia': modelo.feature_importances_})
         st.altair_chart(alt.Chart(imp).mark_bar(color=AZUL, cornerRadiusTopRight=4, cornerRadiusBottomRight=4).encode(
-            x=alt.X('aumento:Q', title='Aumento del RMSE al desordenar la variable (USD)', axis=alt.Axis(labelExpr=EJE_MILES)),
+            x=alt.X('importancia:Q', title='Importancia en el modelo', axis=alt.Axis(format='%')),
             y=alt.Y('variable:N', sort='-x', title=None, axis=alt.Axis(labelLimit=220)),
-            tooltip=[alt.Tooltip('variable:N', title='Variable'), alt.Tooltip('aumento:Q', title='Aumento RMSE', format='$,.0f')]
-        ).properties(height=320), use_container_width=True)
+            tooltip=[alt.Tooltip('variable:N', title='Variable'), alt.Tooltip('importancia:Q', title='Importancia', format='.1%')]
+        ).properties(height=320), width='stretch')
     with i2:
         st.markdown('#### Cómo funciona')
+        hp = modelo.get_params()
         st.markdown(f"""
 1. Se ingresan los datos del distrito en su escala original.
 2. Se calculan las razones **cuartos por vivienda** y **personas por vivienda**.
 3. Se codifica la proximidad al océano como variables binarias.
-4. El modelo **XGBoost** ({info['hiperparametros']['n_estimators']} árboles de profundidad
-   {info['hiperparametros']['max_depth']}, tasa de aprendizaje {info['hiperparametros']['learning_rate']})
+4. El modelo **XGBoost** ({hp['n_estimators']} árboles de profundidad
+   {hp['max_depth']}, tasa de aprendizaje {hp['learning_rate']})
    estima el valor mediano.
 """)
         with st.expander('Hiperparámetros (GridSearch)'):
-            st.json(info['hiperparametros'])
+            st.json({k: hp[k] for k in ['n_estimators', 'max_depth', 'learning_rate', 'min_child_weight', 'subsample', 'colsample_bytree']})
         with st.expander('Limitaciones'):
             st.markdown("""
 - Los datos son del censo de **1990**: los valores no corresponden a precios actuales.
@@ -382,11 +359,11 @@ with tab_lotes:
     if archivo is not None:
         try:
             lote = pd.read_csv(archivo)
-            lote['valor_estimado'] = predecir(modelo, info, lote).round(0)
+            lote['valor_estimado'] = predecir(lote).round(0)
             if 'median_house_value' in lote.columns:
                 lote['error'] = lote['valor_estimado'] - lote['median_house_value']
                 st.metric('Error absoluto promedio del lote', usd(lote['error'].abs().mean()))
-            st.dataframe(lote, hide_index=True, use_container_width=True)
+            st.dataframe(lote, hide_index=True, width='stretch')
             st.download_button('Descargar resultados', lote.to_csv(index=False).encode('utf-8'),
                                'estimaciones.csv', 'text/csv', icon=':material/download:')
         except ValueError as e:
